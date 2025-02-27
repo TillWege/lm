@@ -1,4 +1,6 @@
 #include <iostream>
+#include <ostream>
+#include <string>
 #include "ollama.hpp"
 #include "cfgpath.h"
 #include "json.hpp"
@@ -25,20 +27,6 @@ std::string getConfigFilePath()
 		return std::string();
 	}
 	return std::string(cfgdir);
-}
-
-int tokenCount = 0;
-
-void on_receive_response(const ollama::response& response)
-{
-	std::cout << response << std::flush;
-	tokenCount++;
-
-	if (response.as_json()["done"]==true)
-	{
-		std::cout << std::endl;
-		std::cout << "Used " << tokenCount << " tokens" << std::endl;
-	};
 }
 
 void printModels()
@@ -92,6 +80,52 @@ bool matchArg(const std::string& cliArg, const arg& Arg)
 	return false;
 }
 
+std::string tmpChatMsg;
+
+int tokenCount = 0;
+
+void on_receive_response(const ollama::response& response)
+{
+	std::cout << response << std::flush;
+	tokenCount++;
+	tmpChatMsg += response;
+
+	if (response.as_json()["done"]==true)
+	{
+		std::cout << std::endl;
+		std::cout << "Used " << tokenCount << " tokens" << std::endl;
+	};
+}
+
+void runChat()
+{
+    std::cout << "Starting Chat (/exit to leave)" << std::endl;
+    std::string currentMessage;
+    ollama::messages msgs;
+    std::function<void(const ollama::response&)> response_callback = on_receive_response;
+
+    ollama::options options;
+    options["seed"] = 1;
+
+    while(true) {
+        std::cout << "User:";
+        std::getline(std::cin, currentMessage);
+
+        if(currentMessage == "/exit") {
+            break;
+        }
+
+        ollama::message msg("user", currentMessage);
+        msgs.push_back(msg);
+        tmpChatMsg = "";
+        std::cout << "AI: ";
+        ollama::chat("qwen2.5-coder:1.5b", msgs, on_receive_response, options);
+        ollama::message response("assistant", currentMessage);
+        msgs.push_back(response);
+    }
+
+}
+
 
 int main(int argc, char** argv)
 {
@@ -114,7 +148,8 @@ int main(int argc, char** argv)
 
 	if (argc < 2)
 	{
-		std::cout << "starting chat mode" << std::endl;
+
+		runChat();
 	}
 	else
 	{
@@ -139,7 +174,7 @@ int main(int argc, char** argv)
 		}
 
 		std::function<void(const ollama::response&)> response_callback = on_receive_response;
-		ollama::generate("llama3.2:3b-instruct-Q5_K_M", prompt, on_receive_response);
+		ollama::generate("qwen2.5-coder:1.5b", prompt, on_receive_response);
 	}
 
 	return 0;
