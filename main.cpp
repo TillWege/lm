@@ -1,9 +1,11 @@
 #include <iostream>
+#include <optional>
 #include <ostream>
 #include <string>
 #include "ollama.hpp"
-#include "cfgpath.h"
+#include "config.h"
 #include "json.hpp"
+#include "storage.h"
 
 #define VERSION "0.1.0"
 
@@ -16,17 +18,6 @@ void printArgs(int argc, char** argv)
 	{
 		std::cout << argv[i] << std::endl;
 	}
-}
-
-std::string getConfigFilePath()
-{
-	char cfgdir[512];
-	get_user_config_file(cfgdir, sizeof(cfgdir), "myapp");
-	if (cfgdir[0] == 0) {
-		printf("Unable to find home directory.\n");
-		return std::string();
-	}
-	return std::string(cfgdir);
 }
 
 void printModels()
@@ -119,7 +110,7 @@ void runChat()
         msgs.push_back(msg);
         tmpChatMsg = "";
         std::cout << "AI: ";
-        ollama::chat("qwen2.5-coder:1.5b", msgs, on_receive_response, options);
+        ollama::chat(getConfig(ConfigKey::MODEL_NAME), msgs, on_receive_response, options);
         ollama::message response("assistant", currentMessage);
         msgs.push_back(response);
     }
@@ -145,6 +136,8 @@ int main(int argc, char** argv)
 		"Print version"
 	});
 
+	loadConfig();
+	auto db = initDatabase();
 
 	if (argc < 2)
 	{
@@ -174,7 +167,15 @@ int main(int argc, char** argv)
 		}
 
 		std::function<void(const ollama::response&)> response_callback = on_receive_response;
-		ollama::generate("qwen2.5-coder:1.5b", prompt, on_receive_response);
+		ollama::generate(getConfig(ConfigKey::MODEL_NAME), prompt, on_receive_response);
+
+		Request req = {
+			.id = std::nullopt,
+		    .msg = prompt,
+			.answer = tmpChatMsg,
+			.model = getConfig(ConfigKey::MODEL_NAME),
+		};
+		addRequest(db, req);
 	}
 
 	return 0;

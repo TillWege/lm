@@ -15,19 +15,39 @@ FetchContent_Declare(
         GIT_SHALLOW 1
 )
 
-FetchContent_GetProperties(ftxui)
-if(NOT ftxui_POPULATED)
-  FetchContent_MakeAvailable(ftxui)
-endif()
+FetchContent_MakeAvailable(ftxui)
+
+FetchContent_Declare(
+        SqliteCpp
+        GIT_REPOSITORY https://github.com/SRombauts/SQLiteCpp.git
+        GIT_TAG "master"
+        GIT_PROGRESS TRUE
+        GIT_SHALLOW 1
+)
+
+FetchContent_MakeAvailable(SqliteCpp)
 
 include_directories(vendor)
 
 add_executable(lm main.cpp
         config.cpp
-        config.h)
+        config.h
+        interface.h
+        interface.cpp
+        storage.h
+        storage.cpp
+)
 
 target_link_libraries(lm
     PRIVATE ftxui::screen
     PRIVATE ftxui::dom
     PRIVATE ftxui::component
+    SQLiteCpp sqlite3
 )
+
+if (MSVC)
+    target_compile_options(lm PRIVATE /W4 /WX)
+else()
+    target_compile_options(lm PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_libraries(lm PRIVATE pthread dl)
+endif ()

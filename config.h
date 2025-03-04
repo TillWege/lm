@@ -1,17 +1,15 @@
-//
-// Created by tillw on 25/02/2025.
-//
-
 #ifndef CONFIG_H
 #define CONFIG_H
+#include <string>
 
-
-
-class config {
-
-
+enum ConfigKey {
+    PROVIDER,
+    MODEL_NAME,
+    TEMPERATURE,
 };
 
-
+void initConfigFile();
+void loadConfig();
+std::string getConfig(ConfigKey key);
 
 #endif //CONFIG_H
