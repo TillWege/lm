@@ -46,8 +46,8 @@ void loadConfig() {
     if (configFile.is_open()) {
         configFile >> config;
         configFile.close();
-        std::cout << "Config loaded" << std::endl;
-        std::cout << config.dump(4) << std::endl;
+        //std::cout << "Config loaded" << std::endl;
+        //std::cout << config.dump(4) << std::endl;
     }
 }
 

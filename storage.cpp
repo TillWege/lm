@@ -59,7 +59,7 @@ SQLite::Database initDatabase()
         Model TEXT
     );)");
 
-    std::cout << "Db init Success" << std::endl;
+    //std::cout << "Db init Success" << std::endl;
     return db;
 }
 
