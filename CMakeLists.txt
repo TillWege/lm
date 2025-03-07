@@ -36,6 +36,7 @@ add_executable(lm main.cpp
         interface.cpp
         storage.h
         storage.cpp
+        demo.cpp
 )
 
 target_link_libraries(lm
@@ -45,8 +46,15 @@ target_link_libraries(lm
     SQLiteCpp sqlite3
 )
 
+add_executable(demo demo.cpp)
+target_link_libraries(demo
+        PRIVATE PRIVATE ftxui::screen
+        PRIVATE ftxui::dom
+        PRIVATE ftxui::component
+)
+
 if (MSVC)
-    target_compile_options(lm PRIVATE /W4 /WX)
+    #target_compile_options(lm PRIVATE /W4 /WX)
 else()
     target_compile_options(lm PRIVATE -Wall -Wextra -Wpedantic)
     target_link_libraries(lm PRIVATE pthread dl)

@@ -79,21 +79,32 @@ bool matchArg(const std::string& cliArg, const arg& Arg)
 	return false;
 }
 
-std::string tmpChatMsg;
+
+std::string wipMessage = "";
+bool chatActive = false;
+
+std::mutex wipMessageMutex;
+std::mutex chatActiveMutex;
 
 int tokenCount = 0;
+
+ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::FullscreenPrimaryScreen();
 
 void on_receive_response(const ollama::response& response)
 {
 	//std::cout << response << std::flush;
 	tokenCount++;
-	tmpChatMsg += response;
+	wipMessageMutex.lock();
+	wipMessage += response;
+	wipMessageMutex.unlock();
 
 	if (response.as_json()["done"]==true)
 	{
-		//std::cout << std::endl;
-		//std::cout << "Used " << tokenCount << " tokens" << std::endl;
+		chatActiveMutex.lock();
+		chatActive = false;
+		chatActiveMutex.unlock();
 	};
+	screen.PostEvent(ftxui::Event::Custom);
 }
 
 void runChat()
@@ -107,21 +118,8 @@ void runChat()
     ollama::options options;
     options["seed"] = 1;
 
-    int tc = 0;
-    std::string tmpMsg;
-    auto screen = ScreenInteractive::FullscreenPrimaryScreen();
-    bool generating = false;
-    std::atomic<bool> done = false;
 
-    auto on_recv = [&tc, &tmpMsg](const ollama::response& response) {
-        tc++;
-        tmpMsg += response;
-        //screen.PostEvent(Event::Custom);
 
-        if (response.as_json()["done"] == true) {
-
-        };
-    };
 
     Component input_prompt = Input(&input_str, "Input:");
 
@@ -135,28 +133,49 @@ void runChat()
             } else if(input_str != "") {
                 ollama::message msg("user", input_str);
                 msgs.push_back(msg);
-                tmpMsg = "";
-                generating = true;
-                done = false;
 
-                std::function<void(const ollama::response&)> response_callback = on_recv;
+            	wipMessageMutex.lock();
+            	wipMessage = "";
+            	wipMessageMutex.unlock();
 
-                std::thread new_thread( [response_callback, msgs, options, &done]{
-                  ollama::chat(getConfig(ConfigKey::MODEL_NAME), msgs, response_callback, options);
-                  done = true;
-                });
-                input_str = "";
+            	chatActiveMutex.lock();
+            	chatActive = true;
+            	chatActiveMutex.unlock();
+
+				std::function<void(const ollama::response&)> response_callback = on_receive_response;
+                try
+                {
+					std::thread new_thread( [response_callback, msgs, options]{
+						chat(getConfig(ConfigKey::MODEL_NAME), msgs, response_callback, options);
+					});
+                	new_thread.detach();
+
+                }
+                catch (const std::exception& e)
+                {
+                	std::cout << "Error: " << e.what() << std::endl;
+                }
             }
         }
         return enterPressed;
     });
 
     auto renderer = Renderer(input_prompt, [&] {
-        if(done) {
-            ollama::message response("assistant", tmpMsg);
-            msgs.push_back(response);
-            generating = false;
-        }
+
+        chatActiveMutex.lock();
+		bool generating = chatActive;
+		chatActiveMutex.unlock();
+
+    	if (!generating)
+    	{
+			wipMessageMutex.lock();
+			if (wipMessage != "")
+			{
+				msgs.push_back(ollama::message("assistant", wipMessage));
+				wipMessage = "";
+			}
+			wipMessageMutex.unlock();
+    	}
 
         Elements e = {};
         for(int i = 0; i<msgs.size(); i++)
@@ -175,15 +194,28 @@ void runChat()
             );
         }
 
-        e.push_back({
-            window(text("DEBUG:"), text("TOKEN_COUNT: " + std::to_string(tc)))
-        });
 
-        e.push_back({
-            window(text("User:"), hbox(text(" User : "), input_prompt->Render()))
-        });
+		if (!generating)
+		{
+	        e.push_back({
+	            window(text("User:"), hbox(text(" User : "), input_prompt->Render()))
+	        });
+		}
+    	else
+		{
+			std::string tmpMsg;
+			wipMessageMutex.lock();
+			tmpMsg = wipMessage;
+			wipMessageMutex.unlock();
+			e.push_back(
+				window(
+					text(" Assistant: "),
+					paragraph(tmpMsg)
+				) | color(Color::Blue)
+			);
+		}
 
-        return vbox(e);
+        return frame(vbox(e));
 
      });
 
@@ -240,6 +272,10 @@ int main(int argc, char** argv)
 
 		std::function<void(const ollama::response&)> response_callback = on_receive_response;
 		ollama::generate(getConfig(ConfigKey::MODEL_NAME), prompt, on_receive_response);
+
+		wipMessageMutex.lock();
+		std::string tmpChatMsg = wipMessage;
+		wipMessageMutex.unlock();
 
 		Request req = {
 			.id = std::nullopt,
